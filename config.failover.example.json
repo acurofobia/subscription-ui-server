@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "kind": "vless-failover",
+  "state": "available",
+  "reason": null,
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "node1",
+      "server": "node1.example.org",
+      "server_port": 443,
+      "uuid": "bf000d23-0752-40b4-affe-68f7707a9661",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "example.org",
+        "utls": {"enabled": true, "fingerprint": "chrome"},
+        "reality": {"enabled": true, "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "short_id": "abcd"}
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "node2",
+      "server": "node2.example.org",
+      "server_port": 443,
+      "uuid": "bf000d23-0752-40b4-affe-68f7707a9661",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "example.org",
+        "utls": {"enabled": true, "fingerprint": "chrome"},
+        "reality": {"enabled": true, "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "short_id": "abcd"}
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "node3",
+      "server": "node3.example.org",
+      "server_port": 443,
+      "uuid": "bf000d23-0752-40b4-affe-68f7707a9661",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "example.org",
+        "utls": {"enabled": true, "fingerprint": "chrome"},
+        "reality": {"enabled": true, "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "short_id": "abcd"}
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "node4",
+      "server": "node4.example.org",
+      "server_port": 443,
+      "uuid": "bf000d23-0752-40b4-affe-68f7707a9661",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "example.org",
+        "utls": {"enabled": true, "fingerprint": "chrome"},
+        "reality": {"enabled": true, "public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "short_id": "abcd"}
+      }
+    }
+  ],
+  "failover": {
+    "selector": "vk-wg",
+    "primary": "node1",
+    "backups": ["node2", "node3", "node4"],
+    "intervalMilliseconds": 10000,
+    "timeoutMilliseconds": 5000,
+    "failureThreshold": 2,
+    "recoveryThreshold": 3
+  }
+}

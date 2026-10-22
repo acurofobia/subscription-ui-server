@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "blocks": [
+    {
+      "id": "block01",
+      "type": "card",
+      "visible": true,
+      "title": "Обзор",
+      "subtitle": "Данные из конфигурации",
+      "text": "Здесь может быть любой текст.",
+      "buttons": [
+        {
+          "id": "button01",
+          "visible": true,
+          "title": "Подробнее",
+          "action": {
+            "type": "openExternalUrl",
+            "url": "https://example.com/info"
+          }
+        }
+      ]
+    },
+    {
+      "id": "block02",
+      "type": "valueRow",
+      "visible": true,
+      "subtitle": "Количество серверов",
+      "title": "17",
+      "buttons": [
+        {
+          "id": "button02",
+          "visible": true,
+          "title": "Открыть список",
+          "action": {
+            "type": "openExternalUrl",
+            "url": "https://example.com/servers"
+          }
+        }
+      ]
+    },
+    {
+      "id": "block03",
+      "type": "actionSheet",
+      "title": "Ссылки",
+      "text": "Выберите нужный ресурс",
+      "buttons": [
+        {
+          "id": "button03",
+          "visible": true,
+          "title": "Документация",
+          "action": {
+            "type": "openExternalUrl",
+            "url": "https://example.com/docs"
+          }
+        },
+        {
+          "id": "button04",
+          "visible": true,
+          "title": "Статус сервисов",
+          "action": {
+            "type": "openExternalUrl",
+            "url": "https://example.com/status"
+          }
+        }
+      ]
+    },
+    {
+      "id": "block04",
+      "type": "selectionList",
+      "visible": true,
+      "items": [
+        {
+          "id": "option01",
+          "visible": true,
+          "title": "Вариант 1",
+          "text": "Произвольное описание первого варианта.",
+          "detailsPageId": "page01",
+          "state": "available",
+          "stateText": null,
+          "buttons": []
+        },
+        {
+          "id": "option02",
+          "visible": true,
+          "title": "Вариант 2",
+          "text": "Произвольное описание второго варианта.",
+          "detailsPageId": "page02",
+          "state": "available",
+          "stateText": null,
+          "buttons": []
+        },
+        {
+          "id": "option03",
+          "visible": true,
+          "title": "Вариант 3",
+          "text": "Произвольное описание третьего варианта.",
+          "detailsPageId": null,
+          "state": "unavailable",
+          "stateText": "В разработке",
+          "buttons": []
+        }
+      ]
+    },
+    {
+      "id": "block05",
+      "type": "menu",
+      "visible": true,
+      "items": [
+        {
+          "id": "item01",
+          "visible": true,
+          "title": "Настроить источник данных",
+          "action": {
+            "type": "openScreen",
+            "targetId": "screen01"
+          }
+        },
+        {
+          "id": "item02",
+          "visible": true,
+          "title": "Открыть ссылки",
+          "action": {
+            "type": "openBlock",
+            "targetId": "block03"
+          }
+        },
+        {
+          "id": "item03",
+          "visible": true,
+          "title": "Поддержка",
+          "action": {
+            "type": "openExternalUrl",
+            "url": "https://example.com/support"
+          }
+        }
+      ]
+    },
+    {
+      "id": "block06",
+      "type": "progress",
+      "visible": true,
+      "title": "Готовые элементы",
+      "value": 3,
+      "maximum": 12,
+      "unit": "count",
+      "period": "total"
+    }
+  ],
+  "pages": [
+    {
+      "id": "page01",
+      "title": "Описание варианта 1",
+      "text": "Любой поясняющий текст из JSON."
+    },
+    {
+      "id": "page02",
+      "title": "Описание варианта 2",
+      "text": "Содержимое этой страницы полностью задаётся в файле."
+    }
+  ]
+}
