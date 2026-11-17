@@ -15,11 +15,12 @@ from urllib.parse import urlsplit
 
 from validation import load_document
 from provisioning import adapt_xray_subscription, load_json, validate_provisioning
+from device_access import HWID_PATTERN, decision_for, load_policy
 
 
 DEFAULT_ENV_PATH = Path(__file__).resolve().with_name('.env')
 MAX_CONFIG_BYTES = 8 * 1024 * 1024
-APP_HEADERS = {'Vary': 'User-Agent, X-Subscription-Format, X-Subscription-Capabilities',
+APP_HEADERS = {'Vary': 'User-Agent, X-Subscription-Format, X-Subscription-Capabilities, x-hwid',
                'X-Subscription-Format': 'vipin-v1'}
 
 
@@ -94,6 +95,8 @@ def app_token(values: dict[str, str]) -> str:
 
 def check_files(values: dict[str, str], env_path: Path, data_path: Path | None) -> None:
     load_document(document_path(values, env_path, data_path))
+    if values.get('DEVICE_ACCESS_PATH', '').strip():
+        load_policy(local_path(values['DEVICE_ACCESS_PATH'].strip(), env_path))
     if values.get('SING_BOX_CONFIG_PATH', '').strip():
         read_config(values, env_path)
 
@@ -132,6 +135,8 @@ def create_server(env_path: Path, host: str | None = None, port: int | None = No
     if type(port) is not int or not 0 <= port <= 65535:
         raise ValueError('Port must be between 0 and 65535')
     load_document(document_path(startup, env_path, data_path))
+    if startup.get('DEVICE_ACCESS_PATH', '').strip():
+        load_policy(local_path(startup['DEVICE_ACCESS_PATH'].strip(), env_path))
 
     class Handler(BaseHTTPRequestHandler):
         def setup(self) -> None:
@@ -171,7 +176,8 @@ def create_server(env_path: Path, host: str | None = None, port: int | None = No
                 native = native_ui or native_config or (
                     self.headers.get('User-Agent', '').startswith(values.get('APP_USER_AGENT_PREFIX', 'VipinApp/'))
                     and bool(self.headers.get('X-Subscription-Format')))
-                compatible = 'vless-failover-v1' in self.headers.get('X-Subscription-Capabilities', '').split()
+                capabilities = ' '.join(self.headers.get_all('X-Subscription-Capabilities', [])).split()
+                compatible = 'vless-failover-v1' in capabilities
                 self.native_response = native
                 if path == '/v1/subscription' or native_ui or native_config:
                     authorization = self.headers.get_all('Authorization', [])
@@ -217,15 +223,30 @@ def create_server(env_path: Path, host: str | None = None, port: int | None = No
                     if native and parsed_origin.scheme == 'http' and parsed_origin.hostname not in ('localhost', '127.0.0.1', '::1'):
                         native = False
                         self.native_response = False
+                    decision = None
+                    policy_path = values.get('DEVICE_ACCESS_PATH', '').strip()
+                    if policy_path:
+                        if not native or 'device-access-v1' not in capabilities:
+                            self.respond(406, {'error': 'unsupported_subscription_capability'})
+                            return
+                        hwids = self.headers.get_all('x-hwid', [])
+                        if len(hwids) != 1 or HWID_PATTERN.fullmatch(hwids[0]) is None:
+                            self.respond(400, {'error': 'invalid_device_hwid'})
+                            return
+                        decision = decision_for(local_path(policy_path, env_path), hwids[0])
                     vpn_enabled = bool(values.get('SING_BOX_CONFIG_PATH', '').strip())
                     if native and values.get('VPN_CONFIG_FORMAT', 'sing-box') != 'sing-box' and not compatible:
                         vpn_enabled = False
-                    self.respond(200, {
+                    descriptor = {
                         'sing_box_url': origin + (native_base if native else subscription_path) + '/config' if vpn_enabled else None,
-                        'vk_turn_link': values.get('VK_TURN_LINK', '').strip() or None,
+                        'vk_turn_link': (values.get('VK_TURN_LINK', '').strip() or None)
+                        if decision is None or decision['state'] == 'allowed' else None,
                         'ui_url': origin + native_base + '/ui' if native else origin + '/v1/subscription',
                         'ui_token': app_token(values) if native else token,
-                    })
+                    }
+                    if decision is not None:
+                        descriptor['device_access'] = decision
+                    self.respond(200, descriptor)
                 else:
                     self.respond(404, {'error': 'not_found'})
             except (OSError, ValueError, KeyError, TypeError, ArithmeticError, RecursionError):

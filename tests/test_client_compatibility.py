@@ -24,16 +24,22 @@ class ClientCompatibilityTests(unittest.TestCase):
         cls.compiler_directory = tempfile.TemporaryDirectory()
         cls.addClassCleanup(cls.compiler_directory.cleanup)
         folder = Path(cls.compiler_directory.name)
-        importer = (CLIENT / 'PrototypeApp/Subscription.swift').read_text().replace('import Library\n', '')
         source = folder / 'check.swift'
-        source.write_text((CLIENT / 'Library/Network/VKTurnConfiguration.swift').read_text()
-                          + (CLIENT / 'PrototypeApp/SubscriptionUIDocument.swift').read_text()
-                          + (CLIENT / 'PrototypeApp/SubscriptionLoader.swift').read_text()
-                          + importer + '''
+        sources = ['Library/Network/VKTurnConfiguration.swift',
+                   'Library/Network/SubscriptionDeviceIdentity.swift',
+                   'Library/Network/SubscriptionDeviceAccess.swift',
+                   'PrototypeApp/SubscriptionUIDocument.swift',
+                   'PrototypeApp/SubscriptionLoader.swift',
+                   'PrototypeApp/Subscription.swift']
+        source.write_text('\n'.join((CLIENT / path).read_text() for path in sources)
+                          .replace('import Library\n', '') + '''
 @main struct Checks {
     static func main() async {
         do {
-            let snapshot = try await PrototypeSubscription.download(CommandLine.arguments[1])
+            let snapshot = try await PrototypeSubscriptionLoader.download(CommandLine.arguments[1], deviceHeaders: [
+                "x-hwid": String(repeating: "a", count: 64), "x-device-os": "iOS",
+                "x-ver-os": "test", "x-device-model": "synthetic-client"
+            ])
             let result: [String: Any] = [
                 "complete": snapshot.isComplete,
                 "vless": snapshot.isAvailable(optionID: "option01"),

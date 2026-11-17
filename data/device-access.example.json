@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "default": {
+    "state": "allowed",
+    "revision": 1
+  },
+  "devices": {
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+      "state": "device_revoked",
+      "revision": 2
+    }
+  }
+}

@@ -502,6 +502,110 @@ class ServerTests(unittest.TestCase):
                          200, config)
         self.assertEqual(self.ui()[0], 200)
 
+    def device_policy(self, state='allowed', revision=1, devices=None):
+        policy = {'schemaVersion': 1, 'default': {'state': state, 'revision': revision},
+                  'devices': devices or {}}
+        (self.root / 'devices.json').write_text(json.dumps(policy))
+        self.configure(DEVICE_ACCESS_PATH='devices.json')
+        return policy
+
+    def device_headers(self, hwid='a' * 64):
+        headers = self.app_headers()
+        headers['X-Subscription-Capabilities'] += ' device-access-v1'
+        headers['x-hwid'] = hwid
+        return headers
+
+    def test_device_policy_returns_android_decisions_and_denies_only_turn(self):
+        for state in ('allowed', 'not_allowed', 'device_revoked', 'device_limit_reached'):
+            with self.subTest(state=state):
+                self.device_policy(devices={'a' * 64: {'state': state, 'revision': 42}})
+                response = self.request(headers=self.device_headers())
+                self.assertEqual(response[0], 200)
+                descriptor = json.loads(response[2])
+                self.assertEqual(descriptor['device_access'],
+                                 {'schemaVersion': 1, 'hwid': 'a' * 64, 'state': state, 'revision': 42})
+                self.assertEqual(descriptor['vk_turn_link'], LINK if state == 'allowed' else None)
+                self.assertIsNotNone(descriptor['sing_box_url'])
+                self.assertIn('x-hwid', response[1]['Vary'].lower())
+                self.assert_json(self.request('/subscription/' + TOKEN + '/app/v1/ui',
+                                              headers=self.app_headers(TOKEN)), 200, self.document)
+        other = json.loads(self.request(headers=self.device_headers('b' * 64))[2])
+        self.assertEqual(other['device_access']['state'], 'allowed')
+        self.assertEqual(other['device_access']['hwid'], 'b' * 64)
+
+    def test_device_policy_reload_and_denial_do_not_depend_on_valid_transport_or_ui(self):
+        for state, revision in [('allowed', 1), ('device_revoked', 2), ('allowed', 3)]:
+            self.device_policy(state, revision)
+            descriptor = json.loads(self.request(headers=self.device_headers())[2])
+            self.assertEqual(descriptor['device_access']['revision'], revision)
+            self.assertEqual(descriptor['vk_turn_link'], LINK if state == 'allowed' else None)
+        self.device_policy('device_revoked', 4)
+        self.data.write_text('broken-ui')
+        self.config.write_text('broken-vpn')
+        response = self.request(headers=self.device_headers())
+        self.assertEqual(response[0], 200)
+        self.assertEqual(json.loads(response[2])['device_access']['state'], 'device_revoked')
+        self.assertIsNone(json.loads(response[2])['vk_turn_link'])
+
+    def test_device_policy_requires_native_capability_and_exactly_one_valid_hwid(self):
+        self.device_policy()
+        for headers in ({}, self.app_headers()):
+            self.assertEqual(self.request(headers=headers)[0], 406)
+        for hwid in ('', 'short', 'a' * 65, 'a' * 63 + '_', 'a b' * 10):
+            self.assert_json(self.request(headers=self.device_headers(hwid)),
+                             400, {'error': 'invalid_device_hwid'})
+        headers = self.device_headers()
+        del headers['x-hwid']
+        self.assert_json(self.request(headers=headers), 400, {'error': 'invalid_device_hwid'})
+        connection = HTTPConnection('127.0.0.1', self.httpd.server_port, timeout=2)
+        try:
+            connection.putrequest('GET', '/subscription/' + TOKEN)
+            for name, value in self.device_headers().items():
+                connection.putheader(name, value)
+            connection.putheader('x-hwid', 'b' * 64)
+            connection.endheaders()
+            response = connection.getresponse()
+            self.assertEqual(response.status, 400)
+            self.assertNotIn(LINK, response.read().decode())
+        finally:
+            connection.close()
+        headers = {**self.device_headers(), 'Host': '192.168.1.10:8082'}
+        self.assertEqual(self.request(headers=headers)[0], 406)
+
+    def test_invalid_device_policy_fails_closed_and_recovers(self):
+        policy = self.device_policy()
+        invalid = [None, [], {}, {**policy, 'extra': True}, {**policy, 'schemaVersion': True},
+                   {**policy, 'devices': []}, {**policy, 'devices': {'bad': policy['default']}}]
+        for state, revision in [('unknown', 1), ('allowed', -1), ('allowed', True),
+                                ('allowed', 1.5), ('allowed', 2**63), ('allowed', '1')]:
+            invalid.append({**policy, 'default': {'state': state, 'revision': revision}})
+            invalid.append({**policy, 'devices': {'a' * 64: {'state': state, 'revision': revision}}})
+        path = self.root / 'devices.json'
+        for document in invalid:
+            with self.subTest(document=document):
+                path.write_text(json.dumps(document))
+                self.assert_json(self.request(headers=self.device_headers()),
+                                 503, {'error': 'subscription_unavailable'})
+        for raw in ('{"schemaVersion":1,"schemaVersion":1}', 'private-invalid-policy', ' ' * (1024**2 + 1)):
+            path.write_text(raw)
+            self.assert_json(self.request(headers=self.device_headers()),
+                             503, {'error': 'subscription_unavailable'})
+        path.unlink()
+        self.assertEqual(self.request(headers=self.device_headers())[0], 503)
+        self.device_policy(revision=2**63 - 1)
+        self.assertEqual(self.request(headers=self.device_headers())[0], 200)
+
+    def test_startup_and_check_validate_device_policy(self):
+        self.device_policy()
+        (self.root / 'devices.json').write_text('private-invalid-policy')
+        with self.assertRaises(ValueError):
+            create_server(self.env, port=0)
+        result = subprocess.run([sys.executable, str(ROOT / 'server.py'), '--env', str(self.env), '--check'],
+                                capture_output=True, text=True, timeout=5)
+        self.assertEqual(result.returncode, 1)
+        self.assertNotIn('private-invalid-policy', result.stderr)
+        self.assertNotIn(str(self.root), result.stderr)
+
 
 class CLITests(unittest.TestCase):
     def run_cli(self, *args, cwd=None):
